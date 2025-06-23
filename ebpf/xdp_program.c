@@ -58,6 +58,15 @@ int xdp_sock_prog(struct xdp_md *ctx) {
         return XDP_ABORTED;
     
     // Check protocol and update stats
+    // __u32 queue_index = 0;
+
+    // __u32 *socket_fd = bpf_map_lookup_elem(&xsks_map, &queue_index);
+    // if (!socket_fd) {
+    //     char debug_msg3[] = "XDP: no socket in map\n";
+    //     bpf_trace_printk(debug_msg3, sizeof(debug_msg3));
+    //     return XDP_PASS;
+    // }
+
     if (ip->protocol == 17) {
         update_stats(STAT_UDP_PACKETS);
         return XDP_PASS; // Pass UDP packets
@@ -65,8 +74,8 @@ int xdp_sock_prog(struct xdp_md *ctx) {
         update_stats(STAT_TCP_PACKETS);
         return XDP_PASS; // Pass TCP packets
     } else if (ip->protocol == 1) {
-        // Only handle UDP, TCP, and ICMP
-        int ret = bpf_redirect_map(&xsks_map, 0, 0);
+        bpf_printk("Redirecting ICMP packet\n");
+        return bpf_redirect_map(&xsks_map, 0, 0);
     } else {
         return XDP_PASS; // Pass other protocols
     }

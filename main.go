@@ -115,27 +115,36 @@ func (p *PacketProcessor) ProcessPackets(ctx context.Context) {
             // Process incoming packets
             if p.xdpSocket != nil {
                 p.receivePackets()
+            } else {
+                log.Println("XDP socket is nil, cannot receive packets")
             }
         }
     }
 }
-
 func (p *PacketProcessor) receivePackets() {
     // Get received packets
-    rxDescs := p.xdpSocket.Receive(100) // Receive up to 100 packets
-    
+    rxDescs := p.xdpSocket.Receive(100)  // Receive up to 100 packets
+
+    if len(rxDescs) > 0 {
+        log.Printf("Received %d packets", len(rxDescs))
+    }
+
     for i := 0; i < len(rxDescs); i++ {
         // Get packet data
         pktData := p.xdpSocket.GetFrame(rxDescs[i])
-        
+
         // Process packet (simple example - just print packet size)
         if len(pktData) > 0 {
+            log.Printf("Processing packet %d: size=%d", i, len(pktData))
             p.processPacket(pktData)
+        } else {
+            log.Printf("Received empty packet at index %d", i)
         }
     }
-    
+
     // Return frames to fill ring for reuse
     if len(rxDescs) > 0 {
+        log.Printf("Returning %d frames to fill ring", len(rxDescs))
         p.xdpSocket.Fill(rxDescs)
     }
 }
