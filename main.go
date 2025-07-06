@@ -12,7 +12,6 @@ particular network link and dumps all frames it receives to standard output.
 package main
 
 import (
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -75,7 +74,7 @@ func main() {
 
 	// Create and initialize an XDP socket attached to our chosen network
 	// link.
-	xsk, err := sxdp.NewSocket(Ifindex, queueID, nil)
+	xsk, err := sxdp.NewSocket(Ifindex, queueID, &sxdp.SocketOptions{})
 	if err != nil {
 		fmt.Printf("error: failed to create an XDP socket: %v\n", err)
 		return
@@ -89,38 +88,72 @@ func main() {
 	defer program.Unregister(queueID)
 
 	for {
-		// If there are any free slots on the Fill queue...
-		if n := xsk.NumFreeFillSlots(); n > 0 {
-			// ...then fetch up to that number of not-in-use
-			// descriptors and push them onto the Fill ring queue
-			// for the kernel to fill them with the received
-			// frames.
-			xsk.Fill(xsk.GetDescs(n, true))
-		}
+	if n := xsk.NumFreeFillSlots(); n > 0 {
+		xsk.Fill(xsk.GetDescs(n, true))
+	}
 
-		// Wait for receive - meaning the kernel has
-		// produced one or more descriptors filled with a received
-		// frame onto the Rx ring queue.
-		log.Printf("waiting for frame(s) to be received...")
-		numRx, _, err := xsk.Poll(-1)
-		if err != nil {
-			fmt.Printf("error: %v\n", err)
-			return
-		}
+	numRx, _, err := xsk.Poll(-1)
+	if err != nil {
+		log.Fatalf("poll error: %v", err)
+	}
 
-		if numRx > 0 {
-			// Consume the descriptors filled with received frames
-			// from the Rx ring queue.
-			rxDescs := xsk.Receive(numRx)
+	if numRx > 0 {
+		rxDescs := xsk.Receive(numRx)
 
-			// Print the received frames and also modify them
-			// in-place replacing the destination MAC address with
-			// broadcast address.
-			for i := 0; i < len(rxDescs); i++ {
-				pktData := xsk.GetFrame(rxDescs[i])
-				pkt := gopacket.NewPacket(pktData, layers.LayerTypeEthernet, gopacket.Default)
-				log.Printf("received frame:\n%s%+v", hex.Dump(pktData[:]), pkt)
+		for i := 0; i < len(rxDescs); i++ {
+			desc := rxDescs[i]
+			frame := xsk.GetFrame(desc)
+
+			packet := gopacket.NewPacket(frame, layers.LayerTypeEthernet, gopacket.Default)
+			ethLayer := packet.Layer(layers.LayerTypeEthernet)
+			ipLayer := packet.Layer(layers.LayerTypeIPv4)
+			icmpLayer := packet.Layer(layers.LayerTypeICMPv4)
+
+			if ethLayer == nil || ipLayer == nil || icmpLayer == nil {
+				continue
 			}
+
+			eth := ethLayer.(*layers.Ethernet)
+			ip := ipLayer.(*layers.IPv4)
+			icmp := icmpLayer.(*layers.ICMPv4)
+
+			if icmp.TypeCode.Type() != layers.ICMPv4TypeEchoRequest {
+				continue
+			}
+
+			// Swap MAC
+			eth.SrcMAC, eth.DstMAC = eth.DstMAC, eth.SrcMAC
+
+			// Swap IPs
+			ip.SrcIP, ip.DstIP = ip.DstIP, ip.SrcIP
+
+			// Build ICMP Echo Reply
+			icmp.TypeCode = layers.ICMPv4TypeEchoReply
+			icmp.Checksum = 0 // recalculate
+
+			// Serialize
+			buf := gopacket.NewSerializeBuffer()
+			opts := gopacket.SerializeOptions{
+				FixLengths:       true,
+				ComputeChecksums: true,
+			}
+			err := gopacket.SerializeLayers(buf, opts,
+				eth, ip, icmp, gopacket.Payload(icmp.Payload))
+			if err != nil {
+				log.Printf("error serializing reply: %v", err)
+				continue
+			}
+
+			reply := buf.Bytes()
+
+			// Send reply
+			txDesc := xsk.GetDescs(1, false)[0]
+			copy(xsk.GetFrame(txDesc), reply)
+			txDesc.Len = uint32(len(reply))
+
+			xsk.Transmit([]sxdp.Desc{txDesc})
+			log.Printf("Sent ICMP Echo Reply: %s", ip.DstIP)
 		}
 	}
+}
 }
