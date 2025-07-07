@@ -4,6 +4,7 @@ go 1.24.3
 
 require (
 	github.com/cilium/ebpf v0.18.0
+	github.com/cloudflare/circl v1.6.1
 	github.com/google/gopacket v1.1.19
 	github.com/slavc/xdp v0.3.4
 )

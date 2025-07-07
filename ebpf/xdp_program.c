@@ -120,6 +120,17 @@ int xdp_sock_prog(struct xdp_md *ctx) {
         update_stats(STAT_UDP_PACKETS);
         return XDP_PASS; // Pass UDP packets
     } else if (ip->protocol == IPPROTO_TCP) {
+        struct tcphdr *tcp = (void *)(ip + 1);
+        if ((void *)(tcp + 1) > data_end)
+            return XDP_ABORTED;
+
+        __u16 src_port = bpf_ntohs(tcp->source);
+        __u16 dst_port = bpf_ntohs(tcp->dest);
+        bpf_printk("TCP src port: %d, dst port: %d\\n", src_port, dst_port);
+        if (dst_port == 8080){
+            bpf_printk("Redirecting TCP packet\n");
+            return bpf_redirect_map(&xsks_map, index, 0);
+        }
         update_stats(STAT_TCP_PACKETS);
         return XDP_PASS; // Pass TCP packets
         
