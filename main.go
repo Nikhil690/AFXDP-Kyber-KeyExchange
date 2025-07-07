@@ -79,6 +79,7 @@ func main() {
 		fmt.Printf("error: failed to create an XDP socket: %v\n", err)
 		return
 	}
+	
 
 	// Register our XDP socket file descriptor with the eBPF program so it can be redirected packets
 	if err := program.Register(queueID, xsk.FD()); err != nil {
@@ -100,7 +101,7 @@ func main() {
 		// Wait for receive - meaning the kernel has
 		// produced one or more descriptors filled with a received
 		// frame onto the Rx ring queue.
-		log.Printf("waiting for frame(s) to be received...")
+		// log.Printf("waiting for frame(s) to be received...")
 		numRx, _, err := xsk.Poll(-1)
 		if err != nil {
 			fmt.Printf("error: %v\n", err)
@@ -110,61 +111,65 @@ func main() {
 		if numRx > 0 {
 			// Consume the descriptors filled with received frames
 			// from the Rx ring queue.
-			rxDescs := xsk.Receive(numRx)
-			for i := 0; i < len(rxDescs); i++ {
-				desc := rxDescs[i]
-				frame := xsk.GetFrame(desc)
-
-				packet := gopacket.NewPacket(frame, layers.LayerTypeEthernet, gopacket.Default)
-				ethLayer := packet.Layer(layers.LayerTypeEthernet)
-				ipLayer := packet.Layer(layers.LayerTypeIPv4)
-				icmpLayer := packet.Layer(layers.LayerTypeICMPv4)
-
-				if ethLayer == nil || ipLayer == nil || icmpLayer == nil {
-					continue
-				}
-
-				eth := ethLayer.(*layers.Ethernet)
-				ip := ipLayer.(*layers.IPv4)
-				icmp := icmpLayer.(*layers.ICMPv4)
-
-				if icmp.TypeCode.Type() != layers.ICMPv4TypeEchoRequest {
-					continue
-				}
-
-				// Swap MAC
-				eth.SrcMAC, eth.DstMAC = eth.DstMAC, eth.SrcMAC
-
-				// Swap IPs
-				ip.SrcIP, ip.DstIP = ip.DstIP, ip.SrcIP
-
-				// Build ICMP Echo Reply
-				icmp.TypeCode = layers.ICMPv4TypeEchoReply
-				icmp.Checksum = 0 // recalculate
-
-				// Serialize
-				buf := gopacket.NewSerializeBuffer()
-				opts := gopacket.SerializeOptions{
-					FixLengths:       true,
-					ComputeChecksums: true,
-				}
-				err := gopacket.SerializeLayers(buf, opts,
-					eth, ip, icmp, gopacket.Payload(icmp.Payload))
-				if err != nil {
-					log.Printf("error serializing reply: %v", err)
-					continue
-				}
-
-				reply := buf.Bytes()
-
-				// Send reply
-				txDesc := xsk.GetDescs(1, false)[0]
-				copy(xsk.GetFrame(txDesc), reply)
-				txDesc.Len = uint32(len(reply))
-
-				xsk.Transmit([]sxdp.Desc{txDesc})
-				log.Printf("Sent ICMP Echo Reply: %s", ip.DstIP)
-			}
+			icmpEchoReply(numRx, xsk)
 		}
+	}
+}
+
+func icmpEchoReply(numRx int, xsk *sxdp.Socket) {
+	rxDescs := xsk.Receive(numRx)
+	for i := 0; i < len(rxDescs); i++ {
+		desc := rxDescs[i]
+		frame := xsk.GetFrame(desc)
+
+		packet := gopacket.NewPacket(frame, layers.LayerTypeEthernet, gopacket.Default)
+		ethLayer := packet.Layer(layers.LayerTypeEthernet)
+		ipLayer := packet.Layer(layers.LayerTypeIPv4)
+		icmpLayer := packet.Layer(layers.LayerTypeICMPv4)
+
+		if ethLayer == nil || ipLayer == nil || icmpLayer == nil {
+			continue
+		}
+
+		eth := ethLayer.(*layers.Ethernet)
+		ip := ipLayer.(*layers.IPv4)
+		icmp := icmpLayer.(*layers.ICMPv4)
+
+		if icmp.TypeCode.Type() != layers.ICMPv4TypeEchoRequest {
+			continue
+		}
+
+		// Swap MAC
+		eth.SrcMAC, eth.DstMAC = eth.DstMAC, eth.SrcMAC
+
+		// Swap IPs
+		ip.SrcIP, ip.DstIP = ip.DstIP, ip.SrcIP
+
+		// Build ICMP Echo Reply
+		icmp.TypeCode = layers.ICMPv4TypeEchoReply
+		icmp.Checksum = 0 // recalculate
+
+		// Serialize
+		buf := gopacket.NewSerializeBuffer()
+		opts := gopacket.SerializeOptions{
+			FixLengths:       true,
+			ComputeChecksums: true,
+		}
+		err := gopacket.SerializeLayers(buf, opts,
+			eth, ip, icmp, gopacket.Payload(icmp.Payload))
+		if err != nil {
+			log.Printf("error serializing reply: %v", err)
+			continue
+		}
+
+		reply := buf.Bytes()
+
+		// Send reply
+		txDesc := xsk.GetDescs(1, false)[0]
+		copy(xsk.GetFrame(txDesc), reply)
+		txDesc.Len = uint32(len(reply))
+
+		xsk.Transmit([]sxdp.Desc{txDesc})
+		// log.Printf("Sent ICMP Echo Reply: %s", ip.DstIP)
 	}
 }

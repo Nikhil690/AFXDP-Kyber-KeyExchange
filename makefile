@@ -4,7 +4,7 @@ generate:
 	go generate ./...
 
 build: generate
-	go build -o test
+	go build -o main
 
 run: build
-	./main
+	sudo ./main -linkname xdptut-0fcd -ip-proto 2
