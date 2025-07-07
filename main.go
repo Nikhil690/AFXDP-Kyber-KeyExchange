@@ -12,7 +12,6 @@ particular network link and dumps all frames it receives to standard output.
 package main
 
 import (
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -112,14 +111,59 @@ func main() {
 			// Consume the descriptors filled with received frames
 			// from the Rx ring queue.
 			rxDescs := xsk.Receive(numRx)
-
-			// Print the received frames and also modify them
-			// in-place replacing the destination MAC address with
-			// broadcast address.
 			for i := 0; i < len(rxDescs); i++ {
-				pktData := xsk.GetFrame(rxDescs[i])
-				pkt := gopacket.NewPacket(pktData, layers.LayerTypeEthernet, gopacket.Default)
-				log.Printf("received frame:\n%s%+v", hex.Dump(pktData[:]), pkt)
+				desc := rxDescs[i]
+				frame := xsk.GetFrame(desc)
+
+				packet := gopacket.NewPacket(frame, layers.LayerTypeEthernet, gopacket.Default)
+				ethLayer := packet.Layer(layers.LayerTypeEthernet)
+				ipLayer := packet.Layer(layers.LayerTypeIPv4)
+				icmpLayer := packet.Layer(layers.LayerTypeICMPv4)
+
+				if ethLayer == nil || ipLayer == nil || icmpLayer == nil {
+					continue
+				}
+
+				eth := ethLayer.(*layers.Ethernet)
+				ip := ipLayer.(*layers.IPv4)
+				icmp := icmpLayer.(*layers.ICMPv4)
+
+				if icmp.TypeCode.Type() != layers.ICMPv4TypeEchoRequest {
+					continue
+				}
+
+				// Swap MAC
+				eth.SrcMAC, eth.DstMAC = eth.DstMAC, eth.SrcMAC
+
+				// Swap IPs
+				ip.SrcIP, ip.DstIP = ip.DstIP, ip.SrcIP
+
+				// Build ICMP Echo Reply
+				icmp.TypeCode = layers.ICMPv4TypeEchoReply
+				icmp.Checksum = 0 // recalculate
+
+				// Serialize
+				buf := gopacket.NewSerializeBuffer()
+				opts := gopacket.SerializeOptions{
+					FixLengths:       true,
+					ComputeChecksums: true,
+				}
+				err := gopacket.SerializeLayers(buf, opts,
+					eth, ip, icmp, gopacket.Payload(icmp.Payload))
+				if err != nil {
+					log.Printf("error serializing reply: %v", err)
+					continue
+				}
+
+				reply := buf.Bytes()
+
+				// Send reply
+				txDesc := xsk.GetDescs(1, false)[0]
+				copy(xsk.GetFrame(txDesc), reply)
+				txDesc.Len = uint32(len(reply))
+
+				xsk.Transmit([]sxdp.Desc{txDesc})
+				log.Printf("Sent ICMP Echo Reply: %s", ip.DstIP)
 			}
 		}
 	}
