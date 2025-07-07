@@ -322,9 +322,9 @@ func sendICMPEchoRequest(xsk *sxdp.Socket, srcMAC net.HardwareAddr, dstIPStr str
 	}
 
 	// Dummy ARP lookup or hardcoded test MAC for now
-	dstMAC, _ := net.ParseMAC("ea:f5:44:31:b4:c2")
+	dstMAC, _ := net.ParseMAC("ea:f5:44:31:b4:c2") //NOTE: Replace with dynamic MAC of the destination
 
-	srcIP := net.IPv4(10, 11, 1, 1) // Replace with IP of the interface manually or lookup
+	srcIP := net.IPv4(10, 11, 1, 1) //NOTE: Replace with IP of the interface manually or lookup
 	id := uint16(1234)
 	seq := uint16(1)
 
