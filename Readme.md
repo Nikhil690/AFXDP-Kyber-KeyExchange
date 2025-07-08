@@ -1,0 +1,27 @@
+# Overview
+This repository contains an example AF_XDP client and server implementation in Go
+
+
+# Requirements
+```bash
+sudo apt install clang llvm libelf-dev libpcap-dev build-essential libc6-dev-i386 m4 libbpf-dev
+```
+
+# env setup
+```bash
+eval $(./env/testenv.sh alias)
+```
+Use `t` to test the environment setup.
+
+```bash
+t setup --name afxdp
+```
+To clean 
+```bash
+t teardown
+```
+
+# Build & Run 
+```bash
+make run
+```

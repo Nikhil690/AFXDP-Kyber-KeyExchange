@@ -9,11 +9,3 @@ build: generate
 run: build
 	sudo ./main -linkname afxdp
 
-env:
-	eval $(env/testenv.sh alias)
-
-xdpiface:
-	t setup --name afxdp
-
-tear-env: 
-	t teardown
