@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 	"xdp-example/crypto"
 	"xdp-example/tsm"
 	"xdp-example/xdp"
@@ -72,7 +73,14 @@ func main() {
 
 	// Create and initialize an XDP socket attached to our chosen network
 	// link.
-	xsk, err := sxdp.NewSocket(Ifindex, queueID, nil)
+	xsk, err := sxdp.NewSocket(Ifindex, queueID, &sxdp.SocketOptions{
+		NumFrames:              128,
+		FrameSize:              4096,
+		FillRingNumDescs:       64,
+		CompletionRingNumDescs: 64,
+		RxRingNumDescs:         64,
+		TxRingNumDescs:         64,
+	})
 	if err != nil {
 		fmt.Printf("error: failed to create an XDP socket: %v\n", err)
 		return
@@ -118,16 +126,32 @@ func main() {
 				if tcp.SYN {
 					fmt.Printf("TCP syn received: %v\n", tcp.SYN)
 					tsm.SendSynAck(xsk, packet)
+					break
 				}
 				if tcp.ACK {
 					if tsm.HandleAck(xsk, pubkey, packet) {
-						fmt.Printf("pk sent\n")
+						crypto.StartHello(xsk, pubkey, packet)
+						break
 					}
 				}
-
 			}
 		}
 	}
+}
+
+func showstats(xsk *sxdp.Socket){
+	var err error
+		var stat sxdp.Stats
+		for i := uint64(0); ; i++ {
+			time.Sleep(time.Duration(1) * time.Second)
+			stat, err = xsk.Stats()
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println("---------------------------------------")
+			fmt.Printf("Filled: %d\nReceived: %d\nTransmitted: %d\nCompleted: %d\nRx_dropped: %d\nRx_invalid_descs: %d\nTx_invalid_descs: %d\nRx_ring_full: %d\nRx_fill_ring_empty_descs: %d\nTx_ring_empty_descs: %d\n", stat.Filled, stat.Received, stat.Transmitted, stat.Completed, stat.KernelStats.Rx_dropped, stat.KernelStats.Rx_invalid_descs, stat.KernelStats.Tx_invalid_descs, stat.KernelStats.Rx_ring_full, stat.KernelStats.Rx_fill_ring_empty_descs, stat.KernelStats.Tx_ring_empty_descs)
+			fmt.Println("---------------------------------------")
+		}
 }
 
 func icmpEchoReply(numRx int, xsk *sxdp.Socket) {

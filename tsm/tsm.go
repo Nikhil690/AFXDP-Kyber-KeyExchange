@@ -2,7 +2,6 @@ package tsm
 
 import (
 	"log"
-	"xdp-example/crypto"
 
 	"github.com/cloudflare/circl/kem"
 	"github.com/google/gopacket"
@@ -98,8 +97,6 @@ func SendSynAck(xsk *xdp.Socket, packet gopacket.Packet) {
 	txDesc := xsk.GetDescs(1, false)[0]
 	copy(xsk.GetFrame(txDesc), reply)
 	txDesc.Len = uint32(len(reply))
-
-	// Transmit the packet
 	xsk.Transmit([]xdp.Desc{txDesc})
 
 	log.Printf("Sent TCP SYN-ACK: %s:%d -> %s:%d, Seq=%d, Ack=%d",
@@ -136,7 +133,5 @@ func HandleAck(xsk *xdp.Socket, publicKey kem.PublicKey, packet gopacket.Packet)
 
 	log.Printf("Final ACK received: Seq=%d, Ack=%d",
 		tcp.Seq, tcp.Ack)
-
-	crypto.StartHello(xsk, publicKey, packet)
 	return true
 }

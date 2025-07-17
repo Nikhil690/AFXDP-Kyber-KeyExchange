@@ -25,3 +25,23 @@ t teardown
 ```bash
 make run
 ```
+This starts the server application with AF_XDP enabled
+
+# Setup Client application
+Exec into the network namespace `afxdp` to run the client application.
+```bash
+sudo ip netns exec afxdp bash 
+```
+Then run the client application:
+```bash
+./kyber-test client
+```
+> [!NOTE]
+> Useful information that users should know, even when skimming content.
+> ```bash
+> sudo ip link set dev veth0 mtu 3000 # inside the namespace
+> ```
+> 
+> ```bash
+> sudo ip link set dev afxdp mtu 3000 # outside the namespace
+> ```
