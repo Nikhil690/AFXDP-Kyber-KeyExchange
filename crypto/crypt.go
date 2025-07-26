@@ -1,7 +1,6 @@
 package crypto
 
 import (
-	"bytes"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -10,7 +9,6 @@ import (
 	"github.com/cloudflare/circl/kem/kyber/kyber768"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/pierrec/lz4"
 	"github.com/slavc/xdp"
 )
 
@@ -27,13 +25,13 @@ func GenerateKeys() (publicKey kem.PublicKey, privateKey kem.PrivateKey) {
 	if err != nil {
 		log.Fatal("Failed to generate key pair:", err)
 	}
-	publicKeyBytes, err := publicKey.MarshalBinary()
-	if err != nil {
-		log.Fatal("Failed to marshal public key:", err)
-	}
+	// publicKeyBytes, err := publicKey.MarshalBinary()
+	// if err != nil {
+	// 	log.Fatal("Failed to marshal public key:", err)
+	// }
 
-	fmt.Printf("✅ SERVER: Generated keys - Public key size: %d bytes, Private key size: %d bytes\n",
-		len(publicKeyBytes), scheme.PrivateKeySize())
+	// fmt.Printf("✅ SERVER: Generated keys - Public key size: %d bytes, Private key size: %d bytes\n",
+	// 	len(publicKeyBytes), scheme.PrivateKeySize())
 
 	return publicKey, privateKey
 }
@@ -46,7 +44,7 @@ func StartHello(xsk *xdp.Socket, publicKey kem.PublicKey, packet gopacket.Packet
 	if err != nil {
 		log.Fatal("Failed to marshal public key:", err)
 	}
-	fmt.Println("📤 SERVER: Sending public key to client...")
+	// fmt.Println("📤 SERVER: Sending public key to client...")
 
 	tcpLayer := packet.Layer(layers.LayerTypeTCP)
 	if tcpLayer == nil {
@@ -73,7 +71,7 @@ func StartHello(xsk *xdp.Socket, publicKey kem.PublicKey, packet gopacket.Packet
 	// For testing: use random bytes instead of actual public key
 	// randomBytes := make([]byte, 669) // 1024 bytes for testing
 	// publicKeyHex := hex.EncodeToString(randomBytes)
-	fmt.Printf("📤 SERVER: Public key (hex): %s\n", hex.EncodeToString(publicKeyBytes))
+	// fmt.Printf("📤 SERVER: Public key (hex): %s\n", hex.EncodeToString(publicKeyBytes))
 
 	// Create HTTP request body with public key
 	httpBody := fmt.Sprintf("PUBLIC_KEY:%s", hex.EncodeToString(publicKeyBytes))
@@ -143,14 +141,14 @@ func StartHello(xsk *xdp.Socket, publicKey kem.PublicKey, packet gopacket.Packet
 		return
 	}
 
-	outgoingpacket := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeEthernet, gopacket.Default)
-	fmt.Printf("Outgoing packet: %s\n", outgoingpacket)
+	// outgoingpacket := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeEthernet, gopacket.Default)
+	// fmt.Printf("Outgoing packet: %s\n", outgoingpacket)
 
-	numRec, numCom, err := xsk.Poll(1)
+	_, _, err = xsk.Poll(1)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("num received: %d, num completed: %d\n", numRec, numCom)
+	// fmt.Printf("num received: %d, num completed: %d\n", numRec, numCom)
 	// Send the request packet
 	reply := buf.Bytes()
 
@@ -161,15 +159,15 @@ func StartHello(xsk *xdp.Socket, publicKey kem.PublicKey, packet gopacket.Packet
 		log.Printf("error: TX frame too small, got %d bytes, need %d bytes", len(frame), len(reply))
 		return
 	}
-	fmt.Printf("TX frame size: %d bytes, reply size: %d bytes\n", len(frame), len(reply))
+	// fmt.Printf("TX frame size: %d bytes, reply size: %d bytes\n", len(frame), len(reply))
 	copy(frame, reply)
 	txDesc.Len = uint32(len(reply))
 	xsk.Transmit([]xdp.Desc{txDesc})
 
-	log.Printf("Sent HTTP request with PUBLIC_KEY: %s:%d -> %s:%d, Seq=%d, Ack=%d, PayloadLen=%d",
-		replyIP.SrcIP, replyTCP.SrcPort,
-		replyIP.DstIP, replyTCP.DstPort,
-		replyTCP.Seq, replyTCP.Ack, len(httpPayload))
+	// log.Printf("Sent HTTP request with PUBLIC_KEY: %s:%d -> %s:%d, Seq=%d, Ack=%d, PayloadLen=%d",
+	// 	replyIP.SrcIP, replyTCP.SrcPort,
+	// 	replyIP.DstIP, replyTCP.DstPort,
+	// 	replyTCP.Seq, replyTCP.Ack, len(httpPayload))
 
 	// conn.Write([]byte(message + "\n"))
 
@@ -239,15 +237,4 @@ func StartHello(xsk *xdp.Socket, publicKey kem.PublicKey, packet gopacket.Packet
 
 	// fmt.Println("✅ SERVER: Sent encrypted response to client")
 	// fmt.Println("🎉 SERVER: Key exchange and secure communication complete!")
-}
-
-func compress(data []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	writer := lz4.NewWriter(&buf)
-	_, err := writer.Write(data)
-	if err != nil {
-		return nil, err
-	}
-	writer.Close()
-	return buf.Bytes(), nil
 }
