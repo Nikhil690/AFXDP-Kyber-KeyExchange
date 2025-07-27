@@ -206,6 +206,7 @@ func createTransitionTable() []StateTransition {
         {FIN_WAIT_1, EVENT_RECV_RST, CLOSED, []TCPAction{ACTION_NOTIFY_APP}},
         {FIN_WAIT_2, EVENT_RECV_RST, CLOSED, []TCPAction{ACTION_NOTIFY_APP}},
         {CLOSE_WAIT, EVENT_RECV_RST, CLOSED, []TCPAction{ACTION_NOTIFY_APP}},
+        {CLOSE_WAIT, EVENT_RECV_ACK, CLOSED, []TCPAction{ACTION_NOTIFY_APP}},
         {CLOSING, EVENT_RECV_RST, CLOSED, []TCPAction{ACTION_NOTIFY_APP}},
         {LAST_ACK, EVENT_RECV_RST, CLOSED, []TCPAction{ACTION_NOTIFY_APP}},
         {TIME_WAIT, EVENT_RECV_RST, CLOSED, []TCPAction{ACTION_NOTIFY_APP}},
@@ -251,20 +252,21 @@ func (tsm *TCPStateMachine) ProcessEvent(conn *TCPConnection, event TCPEvent, pa
     conn.mutex.Lock()
     defer conn.mutex.Unlock()
     
-    // oldState := conn.State
+    oldState := conn.State
     
     // Find matching transition
     var transition *StateTransition
     for _, t := range tsm.transitions {
         if t.FromState == conn.State && t.Event == event {
             transition = &t
+            fmt.Printf("Found transition: %s -> %s on event %s\n", t.FromState, t.ToState, event)
             break
         }
     }
     
     if transition == nil {
         // No valid transition - this might be normal (e.g., duplicate ACK)
-        // fmt.Printf("No transition for state %s with event %s\n", conn.State, event)
+        fmt.Printf("No transition for state %s with event %s\n", conn.State, event)
         return false
     }
     
@@ -273,8 +275,8 @@ func (tsm *TCPStateMachine) ProcessEvent(conn *TCPConnection, event TCPEvent, pa
     conn.State = transition.ToState
     conn.LastActivity = time.Now()
     
-    // fmt.Printf("TCP State Transition: %s -> %s (Event: %s)\n", 
-    //     oldState, conn.State, event)
+    fmt.Printf("TCP State Transition: %s -> %s (Event: %s)\n", 
+        oldState, conn.State, event)
     
     // Execute actions
     for _, action := range transition.Actions {
@@ -367,18 +369,25 @@ func (tsm *TCPStateMachine) ProcessPacket(packet gopacket.Packet) *TCPConnection
     
     if tcp.RST {
         event = EVENT_RECV_RST
+        fmt.Printf("Received RST packet from %s:%d to %s:%d\n", ip.SrcIP, tcp.SrcPort, ip.DstIP, tcp.DstPort)
     } else if tcp.SYN && !tcp.ACK {
         event = EVENT_RECV_SYN
+        fmt.Printf("Received SYN packet from %s:%d to %s:%d\n", ip.SrcIP, tcp.SrcPort, ip.DstIP, tcp.DstPort)
     } else if tcp.SYN && tcp.ACK {
         event = EVENT_RECV_SYN_ACK
+        fmt.Printf("Received SYN+ACK packet from %s:%d to %s:%d\n", ip.SrcIP, tcp.SrcPort, ip.DstIP, tcp.DstPort)
     } else if tcp.FIN {
         event = EVENT_RECV_FIN
+        fmt.Printf("Received FIN packet from %s:%d to %s:%d\n", ip.SrcIP, tcp.SrcPort, ip.DstIP, tcp.DstPort)
     } else if tcp.ACK && len(tcp.Payload) > 0 {
         event = EVENT_RECV_DATA
+        fmt.Printf("Received data packet from %s:%d to %s:%d (%d bytes)\n", ip.SrcIP, tcp.SrcPort, ip.DstIP, tcp.DstPort, len(tcp.Payload))
     } else if tcp.ACK {
         event = EVENT_RECV_ACK
+        fmt.Printf("Received ACK packet from %s:%d to %s:%d\n", ip.SrcIP, tcp.SrcPort, ip.DstIP, tcp.DstPort)
     } else {
-        return conn // Unknown packet type
+        fmt.Printf("Unknown TCP packet type from %s:%d to %s:%d\n", ip.SrcIP, tcp.SrcPort, ip.DstIP, tcp.DstPort)
+        return conn
     }
     
     // Process the event
@@ -431,7 +440,7 @@ func (tsm *TCPStateMachine) CloseConnection(conn *TCPConnection) {
     }
     
     delete(tsm.connections, key)
-    // fmt.Printf("Connection removed from state machine: %s\n", key)
+    fmt.Printf("Connection removed from state machine: %s\n", key)
 }
 
 // GetConnectionCount returns the number of active connections

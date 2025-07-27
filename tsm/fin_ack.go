@@ -38,13 +38,14 @@ func HandleFin(xsk *sxdp.Socket, packet gopacket.Packet) bool {
 	// Determine what type of FIN we received and respond appropriately
 	if tcp.ACK && tcp.FIN {
 		// Received FIN+ACK - this is the client initiating graceful shutdown
-		// log.Printf("🔄 Client initiated connection close (FIN+ACK)")
+		log.Printf("🔄 Client initiated connection close (FIN+ACK)")
+		SendAck(xsk, packet)    // First ACK the FIN
 		SendFinAck(xsk, packet)
 		return true
 	} else if tcp.FIN && !tcp.ACK {
 		// Received just FIN - acknowledge it and send our own FIN
-		// log.Printf("🔄 Client sent FIN, sending ACK then FIN")
-		SendAck(xsk, packet)    // First ACK the FIN
+		log.Printf("🔄 Client sent FIN, sending ACK then FIN")
+		// SendAck(xsk, packet)    // First ACK the FIN
 		SendFinAck(xsk, packet) // Then send our FIN+ACK
 		return true
 	}
@@ -117,7 +118,7 @@ func SendFinAck(xsk *sxdp.Socket, packet gopacket.Packet) {
 		ECE:        tcp.ECE,
 		CWR:        tcp.CWR,
 		NS:         tcp.NS,
-		Options:    tcp.Options, // Reuse same TCP options
+		// Options:    tcp.Options, // Reuse same TCP options
 	}
 
 	// Set up TCP checksum calculation
@@ -217,7 +218,7 @@ func SendAck(xsk *sxdp.Socket, packet gopacket.Packet) {
 		ECE:        tcp.ECE,
 		CWR:        tcp.CWR,
 		NS:         tcp.NS,
-		Options:    tcp.Options,
+		// Options:    tcp.Options,
 	}
 
 	// Set up TCP checksum calculation
