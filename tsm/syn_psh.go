@@ -63,7 +63,7 @@ func (ch *CiphertextHandler) HandlePshAckData(xsk *sxdp.Socket, packet gopacket.
 		// Process the ciphertext
 		if ch.processCiphertext(conn, payload) {
 			// Send ACK to acknowledge receipt
-			ch.sendAckResponse(xsk, packet, conn)
+			ch.sendAckResponse(xsk, packet)
 			return true
 		}
 	} else if strings.Contains(payload, ENCRYPTED_DATA) {

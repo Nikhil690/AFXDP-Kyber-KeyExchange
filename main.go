@@ -44,9 +44,7 @@ func initializeTCPStateMachine(xsk *sxdp.Socket, privateKey kem.PrivateKey, sche
 	tcpStateMachine.OnSendAck = func(conn *tsm.TCPConnection, packet gopacket.Packet) {
 		// log.Printf("State machine: Sending ACK for connection %s:%d", conn.RemoteIP, conn.RemotePort)
 		// Use your existing ACK function if you have one, or implement simple ACK
-		if tsm.HandleAck != nil {
-			tsm.HandleAck(xsk, nil, packet) // Call your existing HandleAck
-		}
+		tsm.HandleAck(xsk, nil, packet) // Call your existing HandleAck
 	}
 
 	tcpStateMachine.OnSendFin = func(conn *tsm.TCPConnection, packet gopacket.Packet) {
@@ -289,63 +287,5 @@ func showstats(xsk *sxdp.Socket) {
 		fmt.Println("---------------------------------------")
 		fmt.Printf("Filled: %d\nReceived: %d\nTransmitted: %d\nCompleted: %d\nRx_dropped: %d\nRx_invalid_descs: %d\nTx_invalid_descs: %d\nRx_ring_full: %d\nRx_fill_ring_empty_descs: %d\nTx_ring_empty_descs: %d\n", stat.Filled, stat.Received, stat.Transmitted, stat.Completed, stat.KernelStats.Rx_dropped, stat.KernelStats.Rx_invalid_descs, stat.KernelStats.Tx_invalid_descs, stat.KernelStats.Rx_ring_full, stat.KernelStats.Rx_fill_ring_empty_descs, stat.KernelStats.Tx_ring_empty_descs)
 		fmt.Println("---------------------------------------")
-	}
-}
-
-func icmpEchoReply(numRx int, xsk *sxdp.Socket) {
-	rxDescs := xsk.Receive(numRx)
-	for i := range rxDescs {
-		desc := rxDescs[i]
-		frame := xsk.GetFrame(desc)
-
-		packet := gopacket.NewPacket(frame, layers.LayerTypeEthernet, gopacket.Default)
-		ethLayer := packet.Layer(layers.LayerTypeEthernet)
-		ipLayer := packet.Layer(layers.LayerTypeIPv4)
-		icmpLayer := packet.Layer(layers.LayerTypeICMPv4)
-
-		if ethLayer == nil || ipLayer == nil || icmpLayer == nil {
-			continue
-		}
-
-		eth := ethLayer.(*layers.Ethernet)
-		ip := ipLayer.(*layers.IPv4)
-		icmp := icmpLayer.(*layers.ICMPv4)
-
-		if icmp.TypeCode.Type() != layers.ICMPv4TypeEchoRequest {
-			continue
-		}
-
-		// Swap MAC
-		eth.SrcMAC, eth.DstMAC = eth.DstMAC, eth.SrcMAC
-
-		// Swap IPs
-		ip.SrcIP, ip.DstIP = ip.DstIP, ip.SrcIP
-
-		// Build ICMP Echo Reply
-		icmp.TypeCode = layers.ICMPv4TypeEchoReply
-		icmp.Checksum = 0 // recalculate
-
-		// Serialize
-		buf := gopacket.NewSerializeBuffer()
-		opts := gopacket.SerializeOptions{
-			FixLengths:       true,
-			ComputeChecksums: true,
-		}
-		err := gopacket.SerializeLayers(buf, opts,
-			eth, ip, icmp, gopacket.Payload(icmp.Payload))
-		if err != nil {
-			log.Printf("error serializing reply: %v", err)
-			continue
-		}
-
-		reply := buf.Bytes()
-
-		// Send reply
-		txDesc := xsk.GetDescs(1, false)[0]
-		copy(xsk.GetFrame(txDesc), reply)
-		txDesc.Len = uint32(len(reply))
-
-		xsk.Transmit([]sxdp.Desc{txDesc})
-		log.Printf("Sent ICMP Echo Reply: %s", ip.DstIP)
 	}
 }

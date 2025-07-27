@@ -101,7 +101,7 @@ func (ch *CiphertextHandler) decapsulateSharedSecret(conn *TCPConnection, cipher
 }
 
 // sendAckResponse sends an ACK response to acknowledge data receipt
-func (ch *CiphertextHandler) sendAckResponse(xsk *sxdp.Socket, packet gopacket.Packet, conn *TCPConnection) {
+func (ch *CiphertextHandler) sendAckResponse(xsk *sxdp.Socket, packet gopacket.Packet) {
 	tcpLayer := packet.Layer(layers.LayerTypeTCP)
 	if tcpLayer == nil {
 		return
@@ -205,11 +205,4 @@ func isHexString(s string) bool {
 		}
 	}
 	return len(s) > 0
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
