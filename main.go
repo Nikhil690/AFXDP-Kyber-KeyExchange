@@ -124,9 +124,9 @@ func processPacketWithStateMachine(xsk *sxdp.Socket, packet gopacket.Packet, pub
 		// Check if this is the handshake completion ACK
 		if conn.GetState() == tsm.ESTABLISHED && conn.ShouldSendHello() {
 			// This is the initial handshake completion - send crypto hello
-			log.Printf("Handshake completed, calling tsm.HandleAck and crypto.StartHello")
+			// log.Printf("Handshake completed, calling tsm.HandleAck and crypto.StartHello")
 			if tsm.HandleAck(xsk, pubkey, packet) {
-				log.Printf("tsm.HandleAck returned true, now sending crypto hello")
+				// log.Printf("tsm.HandleAck returned true, now sending crypto hello")
 				crypto.StartHello(xsk, pubkey, packet)
 				conn.MarkHelloSent()
 				log.Printf("✅ Crypto hello sent for connection %s:%d", conn.RemoteIP, conn.RemotePort)
@@ -136,19 +136,19 @@ func processPacketWithStateMachine(xsk *sxdp.Socket, packet gopacket.Packet, pub
 			}
 		} else if conn.GetState() == tsm.ESTABLISHED && !conn.ShouldSendHello() {
 			// This is a data ACK - don't send hello again
-			log.Printf("Data ACK received for established connection - hello already sent: %s", conn.GetState())
+			// log.Printf("Data ACK received for established connection - hello already sent: %s", conn.GetState())
 			// Handle data ACK if needed
 			tsm.HandleAck(xsk, pubkey, packet) // Your existing function
 			return true
 		} else {
 			// Other ACK types (still in handshake, etc.)
-			log.Printf("ACK received in state %s", conn.GetState())
+			// log.Printf("ACK received in state %s", conn.GetState())
 			tsm.HandleAck(xsk, pubkey, packet) // Your existing function
 			return true
 		}
 
 	} else if tcp.FIN {
-		fmt.Printf("TCP fin received with seq: %v\n", packet)
+		// fmt.Printf("TCP fin received with seq: %v\n", packet)
 		tsm.HandleFin(xsk, packet) // Your existing FIN handling
 		return true
 	}

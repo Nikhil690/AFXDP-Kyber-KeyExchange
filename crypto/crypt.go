@@ -71,7 +71,7 @@ func StartHello(xsk *xdp.Socket, publicKey kem.PublicKey, packet gopacket.Packet
 	// For testing: use random bytes instead of actual public key
 	// randomBytes := make([]byte, 669) // 1024 bytes for testing
 	// publicKeyHex := hex.EncodeToString(randomBytes)
-	fmt.Printf("📤 SERVER: Public key (hex): %s\n", hex.EncodeToString(publicKeyBytes))
+	// fmt.Printf("📤 SERVER: Public key (hex): %s\n", hex.EncodeToString(publicKeyBytes))
 
 	// Create HTTP request body with public key
 	httpBody := fmt.Sprintf("PUBLIC_KEY:%s", hex.EncodeToString(publicKeyBytes))
@@ -141,8 +141,8 @@ func StartHello(xsk *xdp.Socket, publicKey kem.PublicKey, packet gopacket.Packet
 		return
 	}
 
-	outgoingpacket := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeEthernet, gopacket.Default)
-	fmt.Printf("Outgoing packet: %s\n", outgoingpacket)
+	// outgoingpacket := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeEthernet, gopacket.Default)
+	// fmt.Printf("Outgoing packet: %s\n", outgoingpacket)
 
 	_, _, err = xsk.Poll(1)
 	if err != nil {
@@ -159,15 +159,15 @@ func StartHello(xsk *xdp.Socket, publicKey kem.PublicKey, packet gopacket.Packet
 		log.Printf("error: TX frame too small, got %d bytes, need %d bytes", len(frame), len(reply))
 		return
 	}
-	fmt.Printf("TX frame size: %d bytes, reply size: %d bytes\n", len(frame), len(reply))
+	// fmt.Printf("TX frame size: %d bytes, reply size: %d bytes\n", len(frame), len(reply))
 	copy(frame, reply)
 	txDesc.Len = uint32(len(reply))
 	xsk.Transmit([]xdp.Desc{txDesc})
 
-	log.Printf("Sent HTTP request with PUBLIC_KEY: %s:%d -> %s:%d, Seq=%d, Ack=%d, PayloadLen=%d",
-		replyIP.SrcIP, replyTCP.SrcPort,
-		replyIP.DstIP, replyTCP.DstPort,
-		replyTCP.Seq, replyTCP.Ack, len(httpPayload))
+	// log.Printf("Sent HTTP request with PUBLIC_KEY: %s:%d -> %s:%d, Seq=%d, Ack=%d, PayloadLen=%d",
+	// 	replyIP.SrcIP, replyTCP.SrcPort,
+	// 	replyIP.DstIP, replyTCP.DstPort,
+	// 	replyTCP.Seq, replyTCP.Ack, len(httpPayload))
 
 	// conn.Write([]byte(message + "\n"))
 
