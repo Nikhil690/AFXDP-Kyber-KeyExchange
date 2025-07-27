@@ -44,5 +44,5 @@ sudo ip netns exec afxdp bash
 ```
 Then run the client application:
 ```bash
-./kyber-test client
+./kyber-bin client
 ```
