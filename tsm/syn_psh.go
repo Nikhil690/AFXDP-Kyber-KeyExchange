@@ -1,7 +1,9 @@
 package tsm
 
 import (
-	"strings"
+	"log"
+	"xdp-example/crypto"
+	"xdp-example/message"
 
 	"github.com/cloudflare/circl/kem"
 	"github.com/google/gopacket"
@@ -19,6 +21,7 @@ type CiphertextHandler struct {
 	privateKey  kem.PrivateKey
 	scheme      kem.Scheme // Your crypto scheme interface
 	connections map[string]*CipherConnection
+	encryption  *crypto.EncryptionContext
 }
 
 // CipherConnection tracks cipher-related state per connection
@@ -51,28 +54,36 @@ func (ch *CiphertextHandler) HandlePshAckData(xsk *sxdp.Socket, packet gopacket.
 	}
 
 	// log.Printf("📦 Received PSH+ACK packet with %d bytes of data from %s:%d",
-	// len(tcp.Payload), conn.RemoteIP, conn.RemotePort)
+	// 	len(tcp.Payload), conn.RemoteIP, conn.RemotePort)
 
 	// Extract and process the payload
-	payload := string(tcp.Payload)
+
+	msg, err := message.Deserialize(tcp.Payload)
+	if err != nil {
+		log.Printf("Failed to deserialize message: %v", err)
+		return false
+	}
+	// log.Printf("Deserialized Message Type: %d, Length: %d", msg.Type, msg.Length)
 
 	// Check if this contains ciphertext
-	if strings.Contains(payload, MSG_CIPHERTEXT) {
-		// log.Printf("📥 SERVER: Received ciphertext from client %s:%d", conn.RemoteIP, conn.RemotePort)
+	switch msg.Type {
+	case message.MsgTypeKeyResponse:
+		log.Printf("📥 SERVER: Received ciphertext from client %s:%d", conn.RemoteIP, conn.RemotePort)
 
 		// Process the ciphertext
-		if ch.processCiphertext(conn, payload) {
+		if ch.processCiphertextsalt(conn, msg) {
 			// Send ACK to acknowledge receipt
 			ch.sendAckResponse(xsk, packet)
 			return true
 		}
-	} else if strings.Contains(payload, ENCRYPTED_DATA) {
-		// Handle other HTTP data if needed
-		// log.Printf("📄 Received HTTP data: %s", payload[:min(100, len(payload))])
-		if ch.processEncryptedDataFromHTTPBody(xsk, packet, conn, payload) {
-			return true // ACK is sent by the encrypted handler
+	case message.MsgTypeBenchmark:
+		if ch.handleBenchmarkPacket(xsk, packet, conn, msg) {
+			return true
 		}
-		return true
+	case message.MsgTypeShutdown:
+		return false // Connection will be closed by the main loop
+	default:
+		return false
 	}
 
 	return false

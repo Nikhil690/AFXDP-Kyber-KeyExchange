@@ -7,6 +7,7 @@ require (
 	github.com/cloudflare/circl v1.6.1
 	github.com/google/gopacket v1.1.19
 	github.com/slavc/xdp v0.3.4
+	golang.org/x/crypto v0.11.1-0.20230711161743-2e82bdd1719d
 )
 
 require (

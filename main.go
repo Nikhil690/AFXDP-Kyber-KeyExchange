@@ -125,7 +125,7 @@ func processPacketWithStateMachine(xsk *sxdp.Socket, packet gopacket.Packet, pub
 			// log.Printf("Handshake completed, calling tsm.HandleAck and crypto.StartHello")
 			if tsm.HandleAck(xsk, pubkey, packet) {
 				// log.Printf("tsm.HandleAck returned true, now sending crypto hello")
-				crypto.StartHello(xsk, pubkey, packet)
+				crypto.StartHelloNew(xsk, pubkey, packet)
 				conn.MarkHelloSent()
 				log.Printf("✅ Crypto hello sent for connection %s:%d", conn.RemoteIP, conn.RemotePort)
 				return true

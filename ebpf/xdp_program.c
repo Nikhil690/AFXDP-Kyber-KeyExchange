@@ -136,8 +136,7 @@ int xdp_sock_prog(struct xdp_md *ctx) {
         
     } else if (ip->protocol == IPPROTO_ICMP) {
         if (bpf_map_lookup_elem(&xsks_map, &index)){
-            bpf_printk("Redirecting ICMP packet\n");
-		    return bpf_redirect_map(&xsks_map, index, 0);
+            bpf_printk("ICMP packet\n");
         }
         return XDP_PASS; // Pass ICMP packets
     } else {
