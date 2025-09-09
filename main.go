@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 	"xdp-example/crypto"
+	"xdp-example/optimizations"
 	"xdp-example/tsm"
 	"xdp-example/xdp"
 
@@ -21,8 +22,35 @@ import (
 var tcpStateMachine *tsm.TCPStateMachine
 var ciphertextHandler *tsm.CiphertextHandler
 
+// Phase 1 Optimization Components
+var bufferPool *optimizations.BufferPool
+var fastConnectionManager *optimizations.FastConnectionManager
+var fastPacketProcessor *optimizations.FastPacketProcessor
+
 // Initialize TCP state machine with your existing functions
-func initializeTCPStateMachine(xsk *sxdp.Socket, privateKey kem.PrivateKey, scheme kem.Scheme) {
+func initializeTCPStateMachine(xsk *sxdp.Socket, privateKey kem.PrivateKey, publicKey kem.PublicKey, scheme kem.Scheme) {
+	// Phase 1: Initialize optimization components
+	log.Printf("🚀 Initializing Phase 1 optimizations...")
+
+	// Initialize buffer pool (1024 buffers, 4KB each)
+	bufferPool = optimizations.NewBufferPool(1024, 4096)
+	log.Printf("✅ Buffer pool initialized with 1024 buffers")
+
+	// Initialize fast connection manager (1 min cleanup, 30 min max idle)
+	fastConnectionManager = optimizations.NewFastConnectionManager(1*time.Minute, 30*time.Minute)
+	log.Printf("✅ Fast connection manager initialized")
+
+	// Initialize fast packet processor
+	fastPacketProcessor = optimizations.NewFastPacketProcessor(bufferPool)
+	log.Printf("✅ Fast packet processor initialized")
+
+	// Initialize optimized crypto processor
+	if err := crypto.InitializeOptimizedCrypto(bufferPool, publicKey); err != nil {
+		log.Printf("⚠️  Failed to initialize optimized crypto: %v", err)
+	} else {
+		log.Printf("✅ Optimized crypto processor initialized")
+	}
+
 	tcpStateMachine = tsm.NewTCPStateMachine()
 
 	// Initialize ciphertext handler
@@ -91,17 +119,24 @@ func initializeTCPStateMachine(xsk *sxdp.Socket, privateKey kem.PrivateKey, sche
 
 // Enhanced packet processing that integrates with your existing code
 func processPacketWithStateMachine(xsk *sxdp.Socket, packet gopacket.Packet, pubkey kem.PublicKey) bool {
-	tcpLayer := packet.Layer(layers.LayerTypeTCP)
-	if tcpLayer == nil {
-		return false
+	// Phase 1 Optimization: Use fast packet processing
+	_, ip, tcp, ok := fastPacketProcessor.ParsePacketLayers(packet)
+	if !ok {
+		return false // Not a valid TCP packet
 	}
-	tcp := tcpLayer.(*layers.TCP)
 
-	// Process packet through state machine first
+	// Phase 1 Optimization: Use fast connection management
+	connKey := optimizations.CreateConnectionKey(ip.SrcIP, ip.DstIP, uint16(tcp.SrcPort), uint16(tcp.DstPort))
+	fastConn := fastConnectionManager.GetConnection(connKey)
+
+	// Process packet through state machine first (keeping existing logic)
 	conn := tcpStateMachine.ProcessPacket(packet)
 	if conn == nil {
 		return false
 	}
+
+	// Sync fast connection state with TSM connection
+	fastConn.State = int(conn.GetState())
 
 	// Handle PSH+ACK packets with data (ciphertext)
 	if tcp.PSH && tcp.ACK && len(tcp.Payload) > 0 {
@@ -125,8 +160,10 @@ func processPacketWithStateMachine(xsk *sxdp.Socket, packet gopacket.Packet, pub
 			// log.Printf("Handshake completed, calling tsm.HandleAck and crypto.StartHello")
 			if tsm.HandleAck(xsk, pubkey, packet) {
 				// log.Printf("tsm.HandleAck returned true, now sending crypto hello")
-				crypto.StartHelloNew(xsk, pubkey, packet)
+				// Phase 1: Use optimized crypto hello
+				crypto.StartHelloOptimizedGlobal(xsk, pubkey, packet)
 				conn.MarkHelloSent()
+				fastConn.HelloSent = true
 				log.Printf("✅ Crypto hello sent for connection %s:%d", conn.RemoteIP, conn.RemotePort)
 				return true
 			} else {
@@ -225,12 +262,11 @@ func main() {
 	pubkey, privateKey := crypto.GenerateKeys() // Get both keys
 
 	// Initialize TCP state machine with crypto parameters
-	initializeTCPStateMachine(xsk, privateKey, kyber768.Scheme()) // Pass privateKey, scheme can be nil for now
+	initializeTCPStateMachine(xsk, privateKey, pubkey, kyber768.Scheme()) // Pass privateKey, publicKey, and scheme
 
 	// log.Printf("Generated public key, length: %d bytes", len(pubkey))
 
 	// Optional: Start stats monitoring in background
-	// go showstats(xsk)
 
 	for {
 		// If there are any free slots on the Fill queue...
@@ -275,17 +311,3 @@ func main() {
 	}
 }
 
-func showstats(xsk *sxdp.Socket) {
-	var err error
-	var stat sxdp.Stats
-	for i := uint64(0); ; i++ {
-		time.Sleep(time.Duration(1) * time.Second)
-		stat, err = xsk.Stats()
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("---------------------------------------")
-		fmt.Printf("Filled: %d\nReceived: %d\nTransmitted: %d\nCompleted: %d\nRx_dropped: %d\nRx_invalid_descs: %d\nTx_invalid_descs: %d\nRx_ring_full: %d\nRx_fill_ring_empty_descs: %d\nTx_ring_empty_descs: %d\n", stat.Filled, stat.Received, stat.Transmitted, stat.Completed, stat.KernelStats.Rx_dropped, stat.KernelStats.Rx_invalid_descs, stat.KernelStats.Tx_invalid_descs, stat.KernelStats.Rx_ring_full, stat.KernelStats.Rx_fill_ring_empty_descs, stat.KernelStats.Tx_ring_empty_descs)
-		fmt.Println("---------------------------------------")
-	}
-}

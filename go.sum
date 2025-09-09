@@ -1,3 +1,5 @@
+github.com/Nikhil690/mypacket v0.0.0-20250909155936-1a33a7a88db6 h1:UZ41YMOihaqzIswgYClnMFs2r78ZgstnL4qQsgSLzY4=
+github.com/Nikhil690/mypacket v0.0.0-20250909155936-1a33a7a88db6/go.mod h1:JIJNRMq0bLu5gAl42RcHLodNClRY1aPuO6RujwtRy8o=
 github.com/cilium/ebpf v0.4.0/go.mod h1:4tRaxcgiL706VnOzHOdBlY8IEAIdxINsQBcU4xJJXRs=
 github.com/cilium/ebpf v0.18.0 h1:OsSwqS4y+gQHxaKgg2U/+Fev834kdnsQbtzRnbVC6Gs=
 github.com/cilium/ebpf v0.18.0/go.mod h1:vmsAT73y4lW2b4peE+qcOqw6MxvWQdC+LiU5gd/xyo4=

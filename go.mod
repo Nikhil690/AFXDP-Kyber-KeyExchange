@@ -11,6 +11,7 @@ require (
 )
 
 require (
+	github.com/Nikhil690/mypacket v0.0.0-20250909155936-1a33a7a88db6 // indirect
 	github.com/vishvananda/netlink v1.1.0 // indirect
 	github.com/vishvananda/netns v0.0.0-20191106174202-0a2b9b5464df // indirect
 	golang.org/x/sys v0.33.0 // indirect
