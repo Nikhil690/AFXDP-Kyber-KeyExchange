@@ -153,6 +153,7 @@ func (ec *EncryptionContext) Encrypt(plaintext []byte) ([]byte, error) {
 // Decrypt decrypts data using AES-256-GCM
 func (ec *EncryptionContext) Decrypt(ciphertext []byte) ([]byte, error) {
 	if len(ciphertext) < NonceSize {
+		fmt.Printf("Ciphertext length: %d, NonceSize: %d\n", len(ciphertext), NonceSize)
 		return nil, fmt.Errorf("ciphertext too short")
 	}
 

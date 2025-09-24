@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"kyber-benchmark/crypto"
 	"kyber-benchmark/metrics"
@@ -18,6 +19,7 @@ import (
 // ServerConfig holds server configuration
 type ServerConfig struct {
 	Port         int
+	Address      string
 	EnableCrypto bool
 	MaxClients   int
 	Verbose      bool
@@ -75,6 +77,7 @@ func parseFlags() *ServerConfig {
 	config := &ServerConfig{}
 
 	flag.IntVar(&config.Port, "port", 8080, "Server port")
+	flag.StringVar(&config.Address, "address", "localhost", "Server address")
 	flag.BoolVar(&config.EnableCrypto, "crypto", true, "Enable encryption")
 	flag.IntVar(&config.MaxClients, "max-clients", 100, "Maximum concurrent clients")
 	flag.BoolVar(&config.Verbose, "verbose", false, "Enable verbose logging")
@@ -85,15 +88,30 @@ func parseFlags() *ServerConfig {
 
 // NewServer creates a new benchmark server
 func NewServer(config *ServerConfig) (*Server, error) {
+	fmt.Println("================================================================================")
+	fmt.Println("🖥️  KYBER BENCHMARK SERVER INITIALIZING")
+	fmt.Println("================================================================================")
+
 	// Generate Kyber key pair if crypto is enabled
 	var keyPair *crypto.KyberKeyPair
 	if config.EnableCrypto {
+		fmt.Println("🔐 GENERATING KYBER-768 KEY PAIR...")
 		var err error
 		keyPair, err = crypto.GenerateKyberKeyPair()
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate key pair: %w", err)
 		}
+		fmt.Printf("✅ Kyber key pair generated successfully\n")
+		fmt.Printf("🔑 Public key size: %d bytes\n", len(keyPair.PublicKey))
+		fmt.Printf("🔒 Private key size: %d bytes\n", len(keyPair.PrivateKey))
+	} else {
+		fmt.Println("🔓 ENCRYPTION DISABLED - PLAINTEXT MODE")
 	}
+
+	fmt.Println("📊 INITIALIZING METRICS COLLECTION...")
+	time.Sleep(200 * time.Millisecond)
+	fmt.Println("✅ Server initialization complete")
+	fmt.Println()
 
 	return &Server{
 		config:   config,
@@ -107,26 +125,52 @@ func NewServer(config *ServerConfig) (*Server, error) {
 
 // Start starts the server
 func (s *Server) Start() error {
+	fmt.Println("🚀 STARTING TCP SERVER...")
+
 	// Create TCP server
-	addr := fmt.Sprintf(":%d", s.config.Port)
+	addr := fmt.Sprintf("%s:%d",s.config.Address, s.config.Port)
 	server, err := network.NewServer(addr)
 	if err != nil {
 		return fmt.Errorf("failed to create TCP server: %w", err)
 	}
 	s.server = server
 
-	fmt.Printf("Server starting on %s\n", server.GetAddr())
-	fmt.Printf("Encryption: %t\n", s.config.EnableCrypto)
-	fmt.Printf("Max clients: %d\n", s.config.MaxClients)
+	fmt.Println("================================================================================")
+	fmt.Println("🌐 SERVER CONFIGURATION")
+	fmt.Println("================================================================================")
+	fmt.Printf("📍 Address: %s\n", server.GetAddr())
+	fmt.Printf("🔐 Encryption: %t\n", s.config.EnableCrypto)
+	fmt.Printf("👥 Max Clients: %d\n", s.config.MaxClients)
+	fmt.Printf("📝 Verbose Mode: %t\n", s.config.Verbose)
+	if s.config.EnableCrypto {
+		fmt.Printf("🔑 Kyber Algorithm: Kyber-768 (NIST Level 3)\n")
+		fmt.Printf("🔒 Symmetric Cipher: AES-256-GCM\n")
+	}
+	fmt.Println("================================================================================")
+	fmt.Println()
 
+	fmt.Println("📈 STARTING METRICS COLLECTION...")
 	// Start metrics collection
 	s.metrics.Start()
+	fmt.Println("✅ Metrics collection started")
+	time.Sleep(300 * time.Millisecond)
 
+	fmt.Println("🔄 SETTING UP GRACEFUL SHUTDOWN HANDLER...")
 	// Handle graceful shutdown
 	go s.handleShutdown()
+	fmt.Println("✅ Shutdown handler ready")
+	time.Sleep(200 * time.Millisecond)
 
+	fmt.Println("👂 STARTING CONNECTION ACCEPTOR...")
 	// Accept connections
 	go s.acceptConnections()
+	fmt.Println("✅ Now accepting client connections")
+	time.Sleep(200 * time.Millisecond)
+
+	fmt.Println()
+	fmt.Println("🎯 SERVER IS READY AND WAITING FOR CLIENTS...")
+	fmt.Println("   Press Ctrl+C to stop the server gracefully")
+	fmt.Println()
 
 	// Wait for shutdown
 	<-s.done
@@ -173,9 +217,14 @@ func (s *Server) acceptConnections() {
 func (s *Server) handleClient(conn *network.Connection) {
 	clientID := conn.GetRemoteAddr().String()
 
-	if s.config.Verbose {
-		log.Printf("Client connected: %s", clientID)
-	}
+	fmt.Printf("🔗 NEW CLIENT CONNECTED: %s\n", clientID)
+
+	// Get current client count
+	s.clientMux.RLock()
+	clientCount := len(s.clients)
+	s.clientMux.RUnlock()
+
+	fmt.Printf("👥 Active clients: %d/%d\n", clientCount+1, s.config.MaxClients)
 
 	session := &ClientSession{
 		conn: conn,
@@ -187,34 +236,46 @@ func (s *Server) handleClient(conn *network.Connection) {
 	s.clients[clientID] = session
 	s.clientMux.Unlock()
 
+	if s.config.Verbose {
+		fmt.Printf("📋 Client %s registered in session table\n", clientID)
+	}
+
 	defer func() {
 		// Unregister client
 		s.clientMux.Lock()
 		delete(s.clients, clientID)
+		finalCount := len(s.clients)
 		s.clientMux.Unlock()
 
 		conn.Close()
-		if s.config.Verbose {
-			log.Printf("Client disconnected: %s", clientID)
-		}
+		fmt.Printf("👋 CLIENT DISCONNECTED: %s\n", clientID)
+		fmt.Printf("👥 Remaining clients: %d\n", finalCount)
 	}()
 
 	// Handle key exchange if crypto is enabled
 	if s.config.EnableCrypto {
+		fmt.Printf("🔐 STARTING KEY EXCHANGE WITH %s...\n", clientID)
 		if err := s.handleKeyExchange(session); err != nil {
-			if s.config.Verbose {
-				log.Printf("Key exchange failed for %s: %v", clientID, err)
-			}
+			fmt.Printf("❌ KEY EXCHANGE FAILED FOR %s: %v\n", clientID, err)
 			return
 		}
+		fmt.Printf("✅ KEY EXCHANGE COMPLETED FOR %s\n", clientID)
+	} else {
+		fmt.Printf("🔓 PLAINTEXT MODE - SKIPPING KEY EXCHANGE FOR %s\n", clientID)
 	}
 
 	// Handle benchmark messages
+	fmt.Printf("📊 STARTING BENCHMARK SESSION FOR %s\n", clientID)
 	s.handleBenchmarkMessages(session)
+	fmt.Printf("🏁 BENCHMARK SESSION ENDED FOR %s\n", clientID)
 }
 
 // handleKeyExchange performs the Kyber key exchange
 func (s *Server) handleKeyExchange(session *ClientSession) error {
+	if s.config.Verbose {
+		fmt.Printf("📤 Sending Kyber public key to %s (%d bytes)...\n", session.id, len(s.keyPair.PublicKey))
+	}
+
 	// Send public key to client
 	keyMsg := KeyExchangeMessage{
 		PublicKey: s.keyPair.PublicKey,
@@ -234,6 +295,11 @@ func (s *Server) handleKeyExchange(session *ClientSession) error {
 		return fmt.Errorf("failed to send public key: %w", err)
 	}
 
+	if s.config.Verbose {
+		fmt.Printf("✅ Public key sent to %s\n", session.id)
+		fmt.Printf("⏳ Waiting for client ciphertext and salt...\n")
+	}
+
 	// Receive ciphertext from client
 	response, err := session.conn.ReceiveMessage()
 	if err != nil {
@@ -244,9 +310,19 @@ func (s *Server) handleKeyExchange(session *ClientSession) error {
 		return fmt.Errorf("unexpected message type: %d", response.Type)
 	}
 
+	if s.config.Verbose {
+		fmt.Printf("📬 Received key response from %s (%d bytes)\n", session.id, len(response.Payload))
+	}
+
 	var keyResponse KeyResponseMessage
 	if err := json.Unmarshal(response.Payload, &keyResponse); err != nil {
 		return fmt.Errorf("failed to unmarshal key response: %w", err)
+	}
+
+	if s.config.Verbose {
+		fmt.Printf("🔓 Parsed ciphertext (%d bytes) and salt (%d bytes)\n",
+			len(keyResponse.Ciphertext), len(keyResponse.Salt))
+		fmt.Printf("⚙️  Starting Kyber decapsulation...\n")
 	}
 
 	// Decapsulate shared secret
@@ -255,10 +331,20 @@ func (s *Server) handleKeyExchange(session *ClientSession) error {
 		return fmt.Errorf("failed to decapsulate secret: %w", err)
 	}
 
+	if s.config.Verbose {
+		fmt.Printf("✅ Decapsulation successful (%d bytes shared secret)\n", len(sharedSecret))
+		fmt.Printf("🔑 Deriving AES-256 key using HKDF...\n")
+	}
+
 	// Derive symmetric key
 	key, err := crypto.DeriveKeyWithSalt(sharedSecret, keyResponse.Salt, []byte("kyber-benchmark"))
 	if err != nil {
 		return fmt.Errorf("failed to derive key: %w", err)
+	}
+
+	if s.config.Verbose {
+		fmt.Printf("✅ AES-256 key derived (%d bytes)\n", len(key))
+		fmt.Printf("🔒 Creating encryption context...\n")
 	}
 
 	// Create encryption context
@@ -270,7 +356,7 @@ func (s *Server) handleKeyExchange(session *ClientSession) error {
 	session.encryption = encCtx
 
 	if s.config.Verbose {
-		log.Printf("Key exchange completed for %s", session.id)
+		fmt.Printf("✅ Encryption context ready for %s\n", session.id)
 	}
 
 	return nil

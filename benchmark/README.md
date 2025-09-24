@@ -73,6 +73,9 @@ go build -o client ./client
 # High throughput test
 ./client -server localhost:8080 -size 64000 -count 100000 -workers 10
 
+# Data-based test (send exactly 1GB)
+./client -server localhost:8080 -data 1GB -size 32768 -workers 4
+
 # Time-based test
 ./client -server localhost:8080 -duration 30s -workers 5
 
@@ -83,7 +86,8 @@ go build -o client ./client
 **Client Options:**
 - `-server`: Server address (default: localhost:8080)
 - `-size`: Packet size in bytes (default: 1024)
-- `-count`: Number of packets to send (default: 10000, 0 for time-based)
+- `-count`: Number of packets to send (default: 10000, 0 for time-based or data-based)
+- `-data`: Total data to send (e.g., '1GB', '500MB', '10KB') - overrides count
 - `-workers`: Number of concurrent workers (default: 1)
 - `-crypto`: Enable encryption (default: true)
 - `-verbose`: Enable verbose logging (default: false)
@@ -183,6 +187,24 @@ Goroutines: 12
 - **golang.org/x/crypto**: Extended Go cryptography package
 
 ## Testing Different Scenarios
+
+### Data-Based Testing
+```bash
+# Send exactly 1GB of data
+./client -data 1GB -size 65536 -workers 4
+
+# Send 500MB with smaller packets
+./client -data 500MB -size 1024 -workers 2
+
+# Send 10GB for high-volume testing
+./client -data 10GB -size 32768 -workers 8
+
+# Test with different units
+./client -data 1.5GB    # 1.5 gigabytes
+./client -data 250MB    # 250 megabytes  
+./client -data 2048KB   # 2 megabytes
+./client -data 1000000  # 1 million bytes (no suffix)
+```
 
 ### Encryption Impact Analysis
 ```bash

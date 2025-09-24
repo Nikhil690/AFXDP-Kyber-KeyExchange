@@ -259,43 +259,110 @@ func (bm *BenchmarkMetrics) PrintReport() {
 	systemStats := bm.GetSystemStats()
 	errorRate := bm.GetErrorRate()
 
-	fmt.Println("\n" + strings.Repeat("=", 80))
-	fmt.Println("BENCHMARK REPORT")
-	fmt.Println(strings.Repeat("=", 80))
+	fmt.Println()
+	fmt.Println("🎯 GENERATING COMPREHENSIVE BENCHMARK REPORT...")
+	time.Sleep(500 * time.Millisecond)
 
-	// Basic stats
-	fmt.Printf("Duration: %v\n", throughputStats.Duration)
-	fmt.Printf("Packets Sent: %d\n", bm.packetsSent)
-	fmt.Printf("Packets Received: %d\n", bm.packetsReceived)
-	fmt.Printf("Bytes Sent: %d (%.2f MB)\n", bm.bytesSent, float64(bm.bytesSent)/1024/1024)
-	fmt.Printf("Bytes Received: %d (%.2f MB)\n", bm.bytesReceived, float64(bm.bytesReceived)/1024/1024)
-	fmt.Printf("Error Rate: %.2f%%\n", errorRate)
+	fmt.Println("\n" + strings.Repeat("=", 88))
+	fmt.Println("📊 KYBER BENCHMARK PERFORMANCE REPORT")
+	fmt.Println(strings.Repeat("=", 88))
 
-	fmt.Println("\n" + strings.Repeat("-", 40))
-	fmt.Println("THROUGHPUT")
-	fmt.Println(strings.Repeat("-", 40))
-	fmt.Printf("Packets/sec: %.2f\n", throughputStats.PacketsPerSecond)
-	fmt.Printf("MB/sec: %.2f\n", throughputStats.BytesPerSecond/1024/1024)
-	fmt.Printf("Gbps: %.2f\n", (throughputStats.BytesPerSecond*8)/1000000000)
+	// Test completion status
+	if errorRate == 0 {
+		fmt.Println("✅ TEST STATUS: COMPLETED SUCCESSFULLY (No errors)")
+	} else {
+		fmt.Printf("⚠️  TEST STATUS: COMPLETED WITH ERRORS (%.2f%% error rate)\n", errorRate)
+	}
+	fmt.Println()
 
-	fmt.Println("\n" + strings.Repeat("-", 40))
-	fmt.Println("LATENCY")
-	fmt.Println(strings.Repeat("-", 40))
-	fmt.Printf("Min: %v\n", latencyStats.Min)
-	fmt.Printf("Max: %v\n", latencyStats.Max)
-	fmt.Printf("Mean: %v\n", latencyStats.Mean)
-	fmt.Printf("Median: %v\n", latencyStats.Median)
-	fmt.Printf("95th percentile: %v\n", latencyStats.P95)
-	fmt.Printf("99th percentile: %v\n", latencyStats.P99)
+	// Basic stats with emojis and better formatting
+	fmt.Println("📈 EXECUTION SUMMARY")
+	fmt.Println(strings.Repeat("-", 50))
+	fmt.Printf("⏱️  Total Duration: %v\n", throughputStats.Duration)
+	fmt.Printf("📤 Packets Sent: %s\n", formatNumber(bm.packetsSent))
+	fmt.Printf("📥 Packets Received: %s\n", formatNumber(bm.packetsReceived))
+	fmt.Printf("📊 Data Sent: %s (%.2f MB)\n", formatBytes(bm.bytesSent), float64(bm.bytesSent)/1024/1024)
+	fmt.Printf("📊 Data Received: %s (%.2f MB)\n", formatBytes(bm.bytesReceived), float64(bm.bytesReceived)/1024/1024)
+	if errorRate > 0 {
+		fmt.Printf("❌ Error Rate: %.2f%%\n", errorRate)
+	}
+	fmt.Printf("✅ Success Rate: %.2f%%\n", 100-errorRate)
 
-	fmt.Println("\n" + strings.Repeat("-", 40))
-	fmt.Println("SYSTEM RESOURCES")
-	fmt.Println(strings.Repeat("-", 40))
-	fmt.Printf("Avg CPU%%: %.2f\n", systemStats.AvgCPUPercent)
-	fmt.Printf("Max CPU%%: %.2f\n", systemStats.MaxCPUPercent)
-	fmt.Printf("Avg Memory: %.2f MB\n", systemStats.AvgMemoryMB)
-	fmt.Printf("Max Memory: %.2f MB\n", systemStats.MaxMemoryMB)
-	fmt.Printf("Goroutines: %d\n", systemStats.Goroutines)
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("🚀 THROUGHPUT PERFORMANCE")
+	fmt.Println(strings.Repeat("-", 50))
+	fmt.Printf("📦 Packets/sec: %s\n", formatNumber(uint64(throughputStats.PacketsPerSecond)))
+	fmt.Printf("💾 MB/sec: %.2f\n", throughputStats.BytesPerSecond/1024/1024)
+	fmt.Printf("⚡ Gbps: %.3f\n", (throughputStats.BytesPerSecond*8)/1000000000)
 
-	fmt.Println(strings.Repeat("=", 80))
+	// Add performance indicators
+	mbps := throughputStats.BytesPerSecond / 1024 / 1024
+	if mbps > 1000 {
+		fmt.Println("🔥 EXCELLENT: >1 GB/s throughput!")
+	} else if mbps > 100 {
+		fmt.Println("✨ GREAT: >100 MB/s throughput!")
+	} else if mbps > 10 {
+		fmt.Println("👍 GOOD: >10 MB/s throughput")
+	}
+
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("⚡ LATENCY ANALYSIS")
+	fmt.Println(strings.Repeat("-", 50))
+	if len(bm.latencies) > 0 {
+		fmt.Printf("⏱️  Minimum: %v\n", latencyStats.Min)
+		fmt.Printf("⏱️  Maximum: %v\n", latencyStats.Max)
+		fmt.Printf("📊 Average: %v\n", latencyStats.Mean)
+		fmt.Printf("📈 Median (P50): %v\n", latencyStats.Median)
+		fmt.Printf("📈 95th Percentile: %v\n", latencyStats.P95)
+		fmt.Printf("📈 99th Percentile: %v\n", latencyStats.P99)
+
+		// Add latency performance indicators
+		avgMicros := float64(latencyStats.Mean.Nanoseconds()) / 1000
+		if avgMicros < 100 {
+			fmt.Println("🚀 EXCELLENT: <100μs average latency!")
+		} else if avgMicros < 1000 {
+			fmt.Println("✨ GREAT: <1ms average latency!")
+		} else if avgMicros < 10000 {
+			fmt.Println("👍 GOOD: <10ms average latency")
+		}
+	} else {
+		fmt.Println("📊 No latency data available")
+	}
+
+	fmt.Println("\n" + strings.Repeat("-", 50))
+	fmt.Println("💻 SYSTEM RESOURCES")
+	fmt.Println(strings.Repeat("-", 50))
+	fmt.Printf("🔧 CPU Usage - Avg: %.2f%%, Max: %.2f%%\n", systemStats.AvgCPUPercent, systemStats.MaxCPUPercent)
+	fmt.Printf("🧠 Memory Usage - Avg: %.2f MB, Max: %.2f MB\n", systemStats.AvgMemoryMB, systemStats.MaxMemoryMB)
+	fmt.Printf("🔄 Goroutines: %d\n", systemStats.Goroutines)
+
+	fmt.Println("\n" + strings.Repeat("=", 88))
+	fmt.Println("🎉 BENCHMARK REPORT COMPLETE")
+	fmt.Println(strings.Repeat("=", 88))
+}
+
+// Helper function to format large numbers with commas
+func formatNumber(n uint64) string {
+	if n < 1000 {
+		return fmt.Sprintf("%d", n)
+	} else if n < 1000000 {
+		return fmt.Sprintf("%.1fK", float64(n)/1000)
+	} else if n < 1000000000 {
+		return fmt.Sprintf("%.1fM", float64(n)/1000000)
+	} else {
+		return fmt.Sprintf("%.1fB", float64(n)/1000000000)
+	}
+}
+
+// Helper function to format bytes
+func formatBytes(n uint64) string {
+	if n < 1024 {
+		return fmt.Sprintf("%d B", n)
+	} else if n < 1024*1024 {
+		return fmt.Sprintf("%.1f KB", float64(n)/1024)
+	} else if n < 1024*1024*1024 {
+		return fmt.Sprintf("%.1f MB", float64(n)/1024/1024)
+	} else {
+		return fmt.Sprintf("%.1f GB", float64(n)/1024/1024/1024)
+	}
 }
