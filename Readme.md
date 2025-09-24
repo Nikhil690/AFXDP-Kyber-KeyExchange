@@ -31,6 +31,7 @@ This starts the server application with AF_XDP enabled
 > [!NOTE]
 > VERY IMPORTANT:
 > ```bash
+> sudo ip netns exec afxdp bash 
 > sudo ip link set dev veth0 mtu 3000 # inside the namespace
 > ```
 > 
@@ -42,7 +43,14 @@ Exec into the network namespace `afxdp` to run the client application.
 ```bash
 sudo ip netns exec afxdp bash 
 ```
-Then run the client application:
+
+## another scenario 
+
+Use benchmark folder to test normal key exchange with new mechanism. There are two binaries in [bin](benchmark/bin/) folder `client` and `server`. client can also used with afxdp server.
+
+for usage: 
 ```bash
-./kyber-bin client
+./server -h
+./client -h
 ```
+
